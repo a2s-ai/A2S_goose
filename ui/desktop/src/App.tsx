@@ -16,6 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import ProviderGuard from './components/ProviderGuard';
+import { SamplingApprovalModal } from './components/SamplingApprovalModal';
+import { useSamplingApproval } from './hooks/useSamplingApproval';
 
 import { ChatType } from './types/chat';
 import Hub from './components/hub';
@@ -300,6 +302,10 @@ export function AppInner() {
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
+  
+  // Initialize sampling approval hook
+  const { currentRequest, approve, deny, error: samplingError } = useSamplingApproval();
+
   const resetChatIfNecessary = useCallback(() => {
     if (chat.messages.length > 0) {
       setSearchParams((prev) => {
@@ -309,6 +315,37 @@ export function AppInner() {
       resetChat();
     }
   }, [chat.messages.length, setSearchParams, resetChat]);
+
+  // Log sampling errors
+  useEffect(() => {
+    if (samplingError) {
+      console.error('[App] Sampling approval error:', samplingError);
+    }
+  }, [samplingError]);
+
+  // Handle sampling approval
+  const handleSamplingApprove = useCallback(async () => {
+    if (currentRequest) {
+      try {
+        await approve(currentRequest.id);
+      } catch (error) {
+        console.error('[App] Failed to approve sampling request:', error);
+        // Optionally show a toast notification
+      }
+    }
+  }, [currentRequest, approve]);
+
+  // Handle sampling denial
+  const handleSamplingDeny = useCallback(async () => {
+    if (currentRequest) {
+      try {
+        await deny(currentRequest.id);
+      } catch (error) {
+        console.error('[App] Failed to deny sampling request:', error);
+        // Optionally show a toast notification
+      }
+    }
+  }, [currentRequest, deny]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -589,6 +626,21 @@ export function AppInner() {
         <GoosehintsModal
           directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
+      {currentRequest && (
+        <SamplingApprovalModal
+          isOpen={true}
+          extensionName={currentRequest.extension_name}
+          messages={currentRequest.messages.map((msg) => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+          }))}
+          systemPrompt={currentRequest.system_prompt}
+          maxTokens={currentRequest.max_tokens}
+          modelPreferences={currentRequest.model_preferences}
+          onApprove={handleSamplingApprove}
+          onDeny={handleSamplingDeny}
         />
       )}
     </>

@@ -15,6 +15,14 @@ export type Annotations = {
     priority?: number;
 };
 
+export type ApprovalRequest = {
+    approved: boolean;
+};
+
+export type ApprovalResponse = {
+    success: boolean;
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -72,6 +80,8 @@ export type ConfigResponse = {
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
+export type ContextInclusion = string;
+
 export type ContextLengthExceeded = {
     msg: string;
 };
@@ -117,6 +127,23 @@ export type CreateCustomProviderRequest = {
     models: Array<string>;
     provider_type: string;
     supports_streaming?: boolean | null;
+};
+
+export type CreateMessageRequestParam = {
+    includeContext?: ContextInclusion | {
+        [key: string]: unknown;
+    };
+    maxTokens: number;
+    messages: Array<SamplingMessage>;
+    metadata?: {
+        [key: string]: unknown;
+    };
+    modelPreferences?: ModelPreferences | {
+        [key: string]: unknown;
+    };
+    stopSequences?: Array<string>;
+    systemPrompt?: string;
+    temperature?: number;
 };
 
 export type CreateRecipeRequest = {
@@ -413,6 +440,10 @@ export type MessageMetadata = {
     userVisible?: boolean;
 };
 
+export type ModelHint = {
+    name?: string;
+};
+
 /**
  * Information about a model's capabilities
  */
@@ -441,6 +472,13 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+};
+
+export type ModelPreferences = {
+    costPriority?: number;
+    hints?: Array<ModelHint>;
+    intelligencePriority?: number;
+    speedPriority?: number;
 };
 
 export type ParseRecipeRequest = {
@@ -514,6 +552,8 @@ export type RawAudioContent = {
     data: string;
     mimeType: string;
 };
+
+export type RawContent = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type RawEmbeddedResource = {
     _meta?: {
@@ -642,6 +682,16 @@ export type Role = string;
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type SamplingMessage = {
+    content: Content;
+    role: Role;
+};
+
+export type SamplingRequest = CreateMessageRequestParam & {
+    extension_name: string;
+    id: string;
 };
 
 export type SaveRecipeRequest = {
@@ -1849,6 +1899,79 @@ export type ReplyResponses = {
      */
     200: unknown;
 };
+
+export type GetPendingRequestsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sampling/pending';
+};
+
+export type GetPendingRequestsErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetPendingRequestsResponses = {
+    /**
+     * List of pending sampling requests
+     */
+    200: Array<SamplingRequest>;
+};
+
+export type GetPendingRequestsResponse = GetPendingRequestsResponses[keyof GetPendingRequestsResponses];
+
+export type StreamSamplingRequestsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sampling/stream';
+};
+
+export type StreamSamplingRequestsErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type StreamSamplingRequestsResponses = {
+    /**
+     * SSE stream of sampling requests
+     */
+    200: unknown;
+};
+
+export type ApproveSamplingRequestData = {
+    body: ApprovalRequest;
+    path: {
+        request_id: string;
+    };
+    query?: never;
+    url: '/sampling/{request_id}/approve';
+};
+
+export type ApproveSamplingRequestErrors = {
+    /**
+     * Request not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ApproveSamplingRequestResponses = {
+    /**
+     * Approval recorded successfully
+     */
+    200: ApprovalResponse;
+};
+
+export type ApproveSamplingRequestResponse = ApproveSamplingRequestResponses[keyof ApproveSamplingRequestResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

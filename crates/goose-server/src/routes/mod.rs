@@ -8,6 +8,7 @@ pub mod health;
 pub mod recipe;
 pub mod recipe_utils;
 pub mod reply;
+pub mod sampling;
 pub mod schedule;
 pub mod session;
 pub mod setup;
@@ -30,4 +31,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
+        .merge(sampling::routes(state.clone()))
 }

@@ -87,11 +87,23 @@ impl Extension {
     }
 }
 
+/// Type alias for the sampling callback function
+pub type SamplingCallback = Arc<
+    dyn Fn(
+            String,
+            CreateMessageRequestParam,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<bool, anyhow::Error>> + Send>,
+        > + Send
+        + Sync,
+>;
+
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: Mutex<PlatformExtensionContext>,
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
+    sampling_callback: Arc<Mutex<Option<SamplingCallback>>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -253,7 +265,13 @@ impl ExtensionManager {
             extensions: Mutex::new(HashMap::new()),
             context: Mutex::new(PlatformExtensionContext { session_id: None }),
             provider: Arc::new(Mutex::new(None)),
+            sampling_callback: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Set the sampling callback for handling sampling requests
+    pub async fn set_sampling_callback(&self, callback: SamplingCallback) {
+        *self.sampling_callback.lock().await = Some(callback);
     }
 
     pub async fn set_context(&self, context: PlatformExtensionContext) {
@@ -348,6 +366,7 @@ impl ExtensionManager {
         let sampling_handler = Box::new(ExtensionSamplingHandler::new(
             self.provider.clone(),
             sanitized_name.clone(),
+            self.sampling_callback.clone(),
         ));
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -1146,14 +1165,20 @@ impl ExtensionManager {
 #[derive(Clone)]
 pub struct ExtensionSamplingHandler {
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
-    _extension_name: String,
+    extension_name: String,
+    sampling_callback: Arc<Mutex<Option<SamplingCallback>>>,
 }
 
 impl ExtensionSamplingHandler {
-    pub fn new(provider: Arc<Mutex<Option<Arc<dyn Provider>>>>, extension_name: String) -> Self {
+    pub fn new(
+        provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
+        extension_name: String,
+        sampling_callback: Arc<Mutex<Option<SamplingCallback>>>,
+    ) -> Self {
         Self {
             provider,
-            _extension_name: extension_name,
+            extension_name,
+            sampling_callback,
         }
     }
 }
@@ -1165,6 +1190,25 @@ impl SamplingHandler for ExtensionSamplingHandler {
         params: CreateMessageRequestParam,
         _extension_name: String,
     ) -> Result<CreateMessageResult, ServiceError> {
+        // If we have a sampling callback, call it for approval
+        if let Some(ref callback) = *self.sampling_callback.lock().await {
+            match callback(self.extension_name.clone(), params.clone()).await {
+                Ok(approved) => {
+                    if !approved {
+                        // Request was denied
+                        return Err(ServiceError::Cancelled {
+                            reason: Some("User rejected sampling request".to_string()),
+                        });
+                    }
+                    // Request was approved, continue with provider call
+                }
+                Err(e) => {
+                    warn!("Sampling callback failed: {}", e);
+                    // Fall through to execute without approval
+                }
+            }
+        }
+
         // Get the provider from the shared reference
         let provider_lock = self.provider.lock().await;
         let provider = provider_lock

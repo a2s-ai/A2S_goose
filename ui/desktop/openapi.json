@@ -1235,6 +1235,94 @@
         }
       }
     },
+    "/sampling/pending": {
+      "get": {
+        "tags": [
+          "super::routes::sampling"
+        ],
+        "operationId": "get_pending_requests",
+        "responses": {
+          "200": {
+            "description": "List of pending sampling requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SamplingRequest"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/sampling/stream": {
+      "get": {
+        "tags": [
+          "super::routes::sampling"
+        ],
+        "operationId": "stream_sampling_requests",
+        "responses": {
+          "200": {
+            "description": "SSE stream of sampling requests"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/sampling/{request_id}/approve": {
+      "post": {
+        "tags": [
+          "super::routes::sampling"
+        ],
+        "operationId": "approve_sampling_request",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Approval recorded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -1896,6 +1984,28 @@
           }
         }
       },
+      "ApprovalRequest": {
+        "type": "object",
+        "required": [
+          "approved"
+        ],
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApprovalResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "Author": {
         "type": "object",
         "properties": {
@@ -2047,6 +2157,19 @@
           }
         ]
       },
+      "ContextInclusion": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
       "ContextLengthExceeded": {
         "type": "object",
         "required": [
@@ -2146,6 +2269,60 @@
           "supports_streaming": {
             "type": "boolean",
             "nullable": true
+          }
+        }
+      },
+      "CreateMessageRequestParam": {
+        "type": "object",
+        "required": [
+          "messages",
+          "maxTokens"
+        ],
+        "properties": {
+          "includeContext": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextInclusion"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SamplingMessage"
+            }
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "modelPreferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelPreferences"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "stopSequences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "systemPrompt": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number"
           }
         }
       },
@@ -3142,6 +3319,14 @@
           }
         }
       },
+      "ModelHint": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
@@ -3180,6 +3365,26 @@
             "type": "boolean",
             "description": "Whether this model supports cache control",
             "nullable": true
+          }
+        }
+      },
+      "ModelPreferences": {
+        "type": "object",
+        "properties": {
+          "costPriority": {
+            "type": "number"
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelHint"
+            }
+          },
+          "intelligencePriority": {
+            "type": "number"
+          },
+          "speedPriority": {
+            "type": "number"
           }
         }
       },
@@ -3339,6 +3544,45 @@
             "type": "string"
           }
         }
+      },
+      "RawContent": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawTextContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawImageContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawAudioContent"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawResource"
+              }
+            ]
+          }
+        ]
       },
       "RawEmbeddedResource": {
         "type": "object",
@@ -3732,6 +3976,43 @@
             "type": "string"
           }
         }
+      },
+      "SamplingMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/Content"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
+      "SamplingRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreateMessageRequestParam"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "extension_name"
+            ],
+            "properties": {
+              "extension_name": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       },
       "SaveRecipeRequest": {
         "type": "object",

@@ -8,7 +8,8 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
+    Annotations, Content, ContextInclusion, CreateMessageRequestParam, EmbeddedResource,
+    Icon, ImageContent, JsonObject, ModelHint, ModelPreferences, RawAudioContent, RawContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
     TextContent, Tool, ToolAnnotations,
 };
@@ -309,12 +310,45 @@ derive_utoipa!(RawImageContent as RawImageContentSchema);
 derive_utoipa!(RawAudioContent as RawAudioContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(RawResource as RawResourceSchema);
+derive_utoipa!(RawContent as RawContentSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
+// Custom schema implementation for SamplingMessage to handle the Annotated<RawContent> issue
+struct SamplingMessageSchema {}
+
+impl<'__s> ToSchema<'__s> for SamplingMessageSchema {
+    fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+        use utoipa::openapi::schema::{ObjectBuilder, Schema};
+        use utoipa::openapi::{Ref, RefOr};
+
+        let schema = Schema::Object(
+            ObjectBuilder::new()
+                .schema_type(utoipa::openapi::schema::SchemaType::Object)
+                .property("role", RefOr::Ref(Ref::new("#/components/schemas/Role")))
+                .property(
+                    "content",
+                    RefOr::Ref(Ref::new("#/components/schemas/Content")),
+                )
+                .required("role")
+                .required("content")
+                .build(),
+        );
+
+        ("SamplingMessage", RefOr::T(schema))
+    }
+
+    fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
+        Vec::new()
+    }
+}
+derive_utoipa!(ModelPreferences as ModelPreferencesSchema);
+derive_utoipa!(ModelHint as ModelHintSchema);
+derive_utoipa!(ContextInclusion as ContextInclusionSchema);
+derive_utoipa!(CreateMessageRequestParam as CreateMessageRequestParamSchema);
 
 #[derive(OpenApi)]
 #[openapi(
@@ -373,8 +407,19 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::parse_recipe,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
+        super::routes::sampling::get_pending_requests,
+        super::routes::sampling::approve_sampling_request,
+        super::routes::sampling::stream_sampling_requests,
     ),
     components(schemas(
+        super::routes::sampling::SamplingRequest,
+        SamplingMessageSchema,
+        ModelPreferencesSchema,
+        ModelHintSchema,
+        ContextInclusionSchema,
+        CreateMessageRequestParamSchema,
+        super::routes::sampling::ApprovalRequest,
+        super::routes::sampling::ApprovalResponse,
         super::routes::config_management::UpsertConfigQuery,
         super::routes::config_management::ConfigKeyQuery,
         super::routes::config_management::ConfigResponse,
@@ -405,6 +450,7 @@ derive_utoipa!(Icon as IconSchema);
         RawAudioContentSchema,
         RawEmbeddedResourceSchema,
         RawResourceSchema,
+        RawContentSchema,
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
